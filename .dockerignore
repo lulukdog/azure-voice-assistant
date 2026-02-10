@@ -1,0 +1,44 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Git
+.git/
+.gitignore
+
+# Docs (不需要进入镜像)
+docs/
+*.md
+LICENSE
+
+# Tests (不需要进入镜像)
+tests/
+
+# Deploy configs
+deploy/k8s/
+
+# Scripts
+scripts/
+
+# Environment / Secrets
+.env
+.env.*
+*.Development.json
+secrets.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/

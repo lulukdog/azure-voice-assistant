@@ -100,7 +100,7 @@ azure-voice-assistant/
 │   ├── docker/                    # Dockerfile
 │   └── k8s/                       # Kubernetes 部署清单
 ├── scripts/                       # 辅助脚本
-└── VoiceAssistant.sln             # 解决方案文件
+└── VoiceAssistant.slnx            # 解决方案文件
 ```
 
 ## 分层设计

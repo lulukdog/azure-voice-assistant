@@ -89,11 +89,11 @@ cd src/VoiceAssistant.Api
 dotnet run
 ```
 
-默认启动地址：`https://localhost:5001` / `http://localhost:5000`
+默认启动地址：`https://localhost:7096` / `http://localhost:5039`
 
 ### 访问前端
 
-后端启动后，直接访问 `http://localhost:5000` 即可打开 Web 界面。
+后端启动后，直接访问 `http://localhost:5039` 即可打开 Web 界面。
 （前端静态文件通过 ASP.NET Core 的 StaticFiles 中间件提供）
 
 ### Docker 本地运行
@@ -289,5 +289,5 @@ curl -X POST \
 
 在 Chrome DevTools 中：
 1. 打开 `chrome://flags/#unsafely-treat-insecure-origin-as-secure`
-2. 添加 `http://localhost:5000` 以允许非 HTTPS 下使用麦克风
-3. 或直接使用 `https://localhost:5001`
+2. 添加 `http://localhost:5039` 以允许非 HTTPS 下使用麦克风
+3. 或直接使用 `https://localhost:7096`
