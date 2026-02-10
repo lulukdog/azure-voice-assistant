@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VoiceAssistant.Api/VoiceAssistant.Api.csproj" />
+    <Project Path="src/VoiceAssistant.Core/VoiceAssistant.Core.csproj" />
+    <Project Path="src/VoiceAssistant.Infrastructure/VoiceAssistant.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VoiceAssistant.Api.Tests/VoiceAssistant.Api.Tests.csproj" />
+    <Project Path="tests/VoiceAssistant.Core.Tests/VoiceAssistant.Core.Tests.csproj" />
+    <Project Path="tests/VoiceAssistant.Infrastructure.Tests/VoiceAssistant.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

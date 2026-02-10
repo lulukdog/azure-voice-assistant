@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: voice-assistant-config
+  namespace: voice-assistant
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  AzureSpeech__Region: "eastasia"
+  AzureSpeech__RecognitionLanguage: "zh-CN"
+  AzureSpeech__SynthesisVoiceName: "zh-CN-XiaoxiaoNeural"
+  AzureSpeech__SynthesisOutputFormat: "Audio16Khz32KBitRateMonoMp3"
+  AzureOpenAI__DeploymentName: "gpt-4o"
+  AzureOpenAI__MaxTokens: "800"
+  AzureOpenAI__Temperature: "0.7"
+  AzureOpenAI__SystemPrompt: "你是一个友好的 AI 语音助手，请用简洁的中文回答问题。"

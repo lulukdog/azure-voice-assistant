@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Voice Assistant</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>Azure Voice Assistant</h1>
+            <p>语音对话助手</p>
+        </header>
+
+        <main>
+            <!-- 对话历史 -->
+            <div id="chat-history" class="chat-container">
+                <p class="placeholder">按下麦克风按钮开始对话...</p>
+            </div>
+
+            <!-- 状态指示 -->
+            <div id="status" class="status">就绪</div>
+
+            <!-- 控制区域 -->
+            <div class="controls">
+                <button id="btn-record" class="btn-record" title="按住录音">
+                    🎤
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/websocket-client.js"></script>
+    <script src="js/audio-recorder.js"></script>
+    <script src="js/audio-player.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
