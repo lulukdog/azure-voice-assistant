@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
+using VoiceAssistant.Core.Exceptions;
 using VoiceAssistant.Core.Interfaces;
+using VoiceAssistant.Core.Models;
 
 namespace VoiceAssistant.Api.Hubs;
 
@@ -8,17 +11,25 @@ namespace VoiceAssistant.Api.Hubs;
 /// </summary>
 public class VoiceHub(
     IConversationPipeline pipeline,
+    ISessionManager sessionManager,
     ILogger<VoiceHub> logger) : Hub
 {
+    /// <summary>
+    /// ConnectionId → SessionId 的映射
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, string> ConnectionSessionMap = new();
+
     /// <summary>
     /// 客户端请求开始新会话
     /// </summary>
     public async Task StartSession(string language = "zh-CN")
     {
-        var sessionId = Guid.NewGuid().ToString("N");
-        logger.LogInformation("New session started: {SessionId}, language: {Language}", sessionId, language);
+        var session = sessionManager.CreateSession();
+        ConnectionSessionMap[Context.ConnectionId] = session.SessionId;
 
-        await Clients.Caller.SendAsync("SessionStarted", new { SessionId = sessionId });
+        logger.LogInformation("New session started: {SessionId}, language: {Language}", session.SessionId, language);
+
+        await Clients.Caller.SendAsync("SessionStarted", new { SessionId = session.SessionId });
     }
 
     /// <summary>
@@ -31,16 +42,7 @@ public class VoiceHub(
             var audioBytes = Convert.FromBase64String(audioChunkBase64);
             using var audioStream = new MemoryStream(audioBytes);
 
-            // 通知客户端开始处理
-            await Clients.Caller.SendAsync("RecognitionResult", new
-            {
-                SessionId = sessionId,
-                Text = "",
-                Confidence = 0.0,
-                IsFinal = false
-            });
-
-            var result = await pipeline.ProcessAsync(sessionId, audioStream);
+            var result = await pipeline.ProcessAsync(sessionId, audioStream, Context.ConnectionAborted);
 
             // 发送识别结果
             await Clients.Caller.SendAsync("RecognitionResult", new
@@ -68,6 +70,16 @@ public class VoiceHub(
                 IsComplete = true
             });
         }
+        catch (VoiceAssistantException ex)
+        {
+            logger.LogWarning(ex, "Voice assistant error for session {SessionId}: {ErrorCode}", sessionId, ex.ErrorCode);
+            await Clients.Caller.SendAsync("Error", new
+            {
+                SessionId = sessionId,
+                Code = ex.ErrorCode,
+                Message = ex.Message
+            });
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Error processing audio for session {SessionId}", sessionId);
@@ -80,9 +92,30 @@ public class VoiceHub(
         }
     }
 
+    /// <summary>
+    /// 客户端请求结束会话
+    /// </summary>
+    public async Task EndSession(string sessionId)
+    {
+        sessionManager.RemoveSession(sessionId);
+        ConnectionSessionMap.TryRemove(Context.ConnectionId, out _);
+
+        logger.LogInformation("Session ended: {SessionId}", sessionId);
+
+        await Clients.Caller.SendAsync("SessionEnded", new { SessionId = sessionId });
+    }
+
     public override Task OnDisconnectedAsync(Exception? exception)
     {
-        logger.LogInformation("Client disconnected: {ConnectionId}", Context.ConnectionId);
+        if (ConnectionSessionMap.TryRemove(Context.ConnectionId, out var sessionId))
+        {
+            logger.LogInformation("Client disconnected: {ConnectionId}, removed mapping for session: {SessionId}", Context.ConnectionId, sessionId);
+        }
+        else
+        {
+            logger.LogInformation("Client disconnected: {ConnectionId}", Context.ConnectionId);
+        }
+
         return base.OnDisconnectedAsync(exception);
     }
 }
