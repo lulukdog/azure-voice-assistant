@@ -8,6 +8,8 @@
 | [Azure 一键部署](#二azure-一键部署脚本方式) | 用脚本自动创建 Azure 资源并部署到 AKS | ⭐⭐ |
 | [手动分步部署](#三手动分步部署) | 想理解每一步在做什么 | ⭐⭐⭐ |
 
+**当前线上地址**: https://voice-assistant.eastasia.cloudapp.azure.com
+
 ---
 
 ## 前置准备
@@ -218,6 +220,12 @@ kubectl port-forward svc/voice-assistant 8080:80 -n voice-assistant
 # 另开终端测试
 curl http://localhost:8080/health
 # 期望输出: Healthy
+```
+
+部署完成后，通过 Ingress 域名直接访问：
+
+```
+https://voice-assistant.eastasia.cloudapp.azure.com
 ```
 
 ### Step 4: 配置域名访问（可选）
@@ -679,4 +687,4 @@ K8s 中环境变量使用 `__`（双下划线）分隔嵌套配置。例如：
 | `dotnet run`（本地开发） | 5039 (HTTP) / 7096 (HTTPS) | `http://localhost:5039` |
 | Docker 容器 | 8080 | `docker run -p 8080:8080 ...` |
 | K8s Service | 80 → 8080 | `kubectl port-forward svc/... 8080:80` |
-| K8s Ingress | 443 (HTTPS) → 80 → 8080 | `https://your-domain.com` |
+| K8s Ingress | 443 (HTTPS) → 80 → 8080 | `https://voice-assistant.eastasia.cloudapp.azure.com` |
