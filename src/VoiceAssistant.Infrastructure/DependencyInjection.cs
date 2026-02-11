@@ -12,14 +12,19 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<AzureSpeechOptions>(
-            configuration.GetSection(AzureSpeechOptions.SectionName));
-        services.Configure<AzureOpenAIOptions>(
-            configuration.GetSection(AzureOpenAIOptions.SectionName));
+        services.AddOptionsWithValidateOnStart<AzureSpeechOptions>()
+            .BindConfiguration(AzureSpeechOptions.SectionName)
+            .ValidateDataAnnotations();
+        services.AddOptionsWithValidateOnStart<AzureOpenAIOptions>()
+            .BindConfiguration(AzureOpenAIOptions.SectionName)
+            .ValidateDataAnnotations();
 
         services.AddScoped<ISpeechToTextService, AzureSpeechToTextService>();
         services.AddScoped<ITextToSpeechService, AzureTextToSpeechService>();
         services.AddScoped<IChatService, AzureOpenAIChatService>();
+
+        services.AddHealthChecks()
+            .AddCheck<AzureServicesHealthCheck>("azure-services");
 
         return services;
     }
