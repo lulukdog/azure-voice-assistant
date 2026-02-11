@@ -112,22 +112,55 @@ docker run -p 5000:8080 \
   voice-assistant:dev
 ```
 
+> 完整的线上部署流程（Azure 资源创建、AKS 部署、域名配置等）请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)。
+
 ---
 
 ## 运行测试
 
 ```bash
-# 运行所有测试
+# 运行所有测试（4 个项目，106 个测试用例）
 dotnet test
 
 # 运行指定项目的测试
-dotnet test tests/VoiceAssistant.Core.Tests
+dotnet test tests/VoiceAssistant.Core.Tests           # 22 个单元测试
+dotnet test tests/VoiceAssistant.Api.Tests             # 13 个单元测试
+dotnet test tests/VoiceAssistant.Infrastructure.Tests  # 48 个单元测试
+dotnet test tests/VoiceAssistant.IntegrationTests      # 23 个集成测试
 
 # 带详细输出
 dotnet test --verbosity normal
 
 # 生成代码覆盖报告
 dotnet test --collect:"XPlat Code Coverage"
+```
+
+### 测试项目说明
+
+| 测试项目 | 测试类型 | 测试数量 | 说明 |
+|----------|----------|----------|------|
+| `VoiceAssistant.Core.Tests` | 单元测试 | 22 | ConversationPipeline、InMemorySessionManager |
+| `VoiceAssistant.Api.Tests` | 单元测试 | 13 | ConversationsController、ExceptionHandlingMiddleware |
+| `VoiceAssistant.Infrastructure.Tests` | 单元测试 | 48 | Azure 服务实现、健康检查、DI 注册 |
+| `VoiceAssistant.IntegrationTests` | 集成测试 | 23 | REST API、SignalR Hub、健康检查、异常中间件 |
+
+### 集成测试架构
+
+集成测试使用 `WebApplicationFactory<Program>` 启动完整的 HTTP/SignalR 管道，mock 掉 Azure 外部服务，保留真实的 `InMemorySessionManager` 和 `ConversationPipeline`：
+
+```
+VoiceAssistant.IntegrationTests/
+├── Fixtures/
+│   ├── MockServiceDefaults.cs              # 默认 happy-path mock 配置
+│   └── VoiceAssistantWebApplicationFactory.cs  # 自定义 WebApplicationFactory
+├── RestApi/
+│   └── ConversationsApiTests.cs            # 12 个 REST API 测试
+├── SignalR/
+│   └── VoiceHubTests.cs                    # 6 个 WebSocket Hub 测试
+├── HealthCheck/
+│   └── HealthCheckTests.cs                 # 1 个健康检查测试
+└── Middleware/
+    └── ExceptionMiddlewareIntegrationTests.cs  # 4 个异常中间件测试
 ```
 
 ---
@@ -149,7 +182,9 @@ dotnet test --collect:"XPlat Code Coverage"
 ├── Interfaces/      # 接口定义（仅 Core 层）
 ├── Models/          # 数据模型
 ├── Options/         # 配置选项类
+├── Exceptions/      # 自定义异常（仅 Core 层）
 ├── Services/        # 服务实现
+├── Pipeline/        # 管道实现（仅 Core 层）
 ├── Extensions/      # 扩展方法
 └── Middleware/       # 中间件（仅 Api 层）
 ```
@@ -159,6 +194,17 @@ dotnet test --collect:"XPlat Code Coverage"
 每个项目层提供一个 `DependencyInjection.cs` 扩展方法：
 
 ```csharp
+// VoiceAssistant.Core/DependencyInjection.cs
+public static class DependencyInjection
+{
+    public static IServiceCollection AddCore(this IServiceCollection services)
+    {
+        services.AddSingleton<ISessionManager, InMemorySessionManager>();
+        services.AddScoped<IConversationPipeline, ConversationPipeline>();
+        return services;
+    }
+}
+
 // VoiceAssistant.Infrastructure/DependencyInjection.cs
 public static class DependencyInjection
 {
@@ -166,14 +212,20 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<AzureSpeechOptions>(
-            configuration.GetSection(AzureSpeechOptions.SectionName));
-        services.Configure<AzureOpenAIOptions>(
-            configuration.GetSection(AzureOpenAIOptions.SectionName));
+        // Options 使用 ValidateOnStart 确保启动时校验配置
+        services.AddOptionsWithValidateOnStart<AzureSpeechOptions>()
+            .BindConfiguration(AzureSpeechOptions.SectionName)
+            .ValidateDataAnnotations();
+        services.AddOptionsWithValidateOnStart<AzureOpenAIOptions>()
+            .BindConfiguration(AzureOpenAIOptions.SectionName)
+            .ValidateDataAnnotations();
 
         services.AddScoped<ISpeechToTextService, AzureSpeechToTextService>();
         services.AddScoped<ITextToSpeechService, AzureTextToSpeechService>();
         services.AddScoped<IChatService, AzureOpenAIChatService>();
+
+        services.AddHealthChecks()
+            .AddCheck<AzureServicesHealthCheck>("azure-services");
 
         return services;
     }
@@ -183,15 +235,17 @@ public static class DependencyInjection
 在 `Program.cs` 中统一注册：
 
 ```csharp
+builder.Services.AddCore();
 builder.Services.AddInfrastructure(builder.Configuration);
 ```
 
 ### 错误处理规范
 
-- 不要吞掉异常，使用全局异常处理中间件统一处理
-- Azure SDK 调用使用 Polly 重试策略
-- 业务异常使用自定义异常类型
+- 不要吞掉异常，使用全局异常处理中间件 `ExceptionHandlingMiddleware` 统一处理
+- 业务异常使用自定义异常类型（继承 `VoiceAssistantException`）
+- Pipeline 中 Azure SDK 调用失败时，通过 `when (ex is not VoiceAssistantException)` 过滤后包装为对应的业务异常
 - 所有异常记录到结构化日志
+- Controller 的 `Speak` 方法包含独立的 try-catch 进行精细化错误处理
 
 ### 日志规范
 
@@ -208,7 +262,12 @@ _logger.LogError(ex, "STT failed for session {SessionId}", sessionId);
 
 ### VoiceAssistant.Core
 
-无外部 NuGet 包依赖（纯 .NET 类库）。
+| 包名 | 版本 | 用途 |
+|------|------|------|
+| `Microsoft.Extensions.Options` | 10.0.x | 配置绑定（Options 模型） |
+| `Microsoft.Extensions.Logging.Abstractions` | 10.0.x | 日志抽象 |
+
+> Core 层仅依赖 Microsoft.Extensions 抽象包，不依赖任何 Azure SDK。
 
 ### VoiceAssistant.Infrastructure
 
@@ -218,22 +277,28 @@ _logger.LogError(ex, "STT failed for session {SessionId}", sessionId);
 | `Azure.AI.OpenAI` | 最新稳定版 | Azure OpenAI SDK |
 | `Microsoft.Extensions.Options` | 10.0.x | 配置绑定 |
 | `Microsoft.Extensions.Logging.Abstractions` | 10.0.x | 日志抽象 |
+| `Microsoft.Extensions.Diagnostics.HealthChecks` | 10.0.x | 健康检查 |
 
 ### VoiceAssistant.Api
 
 | 包名 | 版本 | 用途 |
 |------|------|------|
-| `Microsoft.AspNetCore.SignalR` | 内置 | WebSocket 通信 |
-| `Serilog.AspNetCore` | 最新稳定版 | 结构化日志 |
+| `Microsoft.AspNetCore.OpenApi` | 10.0.x | OpenAPI 支持 |
+
+> SignalR、HealthChecks、Controllers 等均为 ASP.NET Core 内置功能，无需额外 NuGet 包。
 
 ### 测试项目
 
-| 包名 | 用途 |
-|------|------|
-| `xunit` | 测试框架 |
-| `Moq` | Mock 框架 |
-| `FluentAssertions` | 断言库 |
-| `Microsoft.AspNetCore.Mvc.Testing` | 集成测试 |
+| 包名 | 版本 | 用途 |
+|------|------|------|
+| `xunit` | 2.9.3 | 测试框架 |
+| `xunit.runner.visualstudio` | 3.1.4 | 测试运行器 |
+| `Microsoft.NET.Test.Sdk` | 17.14.1 | 测试 SDK |
+| `Moq` | 4.20.72 | Mock 框架 |
+| `FluentAssertions` | 8.0.1 | 断言库 |
+| `coverlet.collector` | 6.0.4 | 代码覆盖率 |
+| `Microsoft.AspNetCore.Mvc.Testing` | 10.0.2 | 集成测试（WebApplicationFactory） |
+| `Microsoft.AspNetCore.SignalR.Client` | 10.0.2 | SignalR 客户端（集成测试） |
 
 ---
 
@@ -243,6 +308,7 @@ _logger.LogError(ex, "STT failed for session {SessionId}", sessionId);
 VoiceAssistant.Api
   ├── ProjectReference: VoiceAssistant.Core
   └── ProjectReference: VoiceAssistant.Infrastructure
+  └── InternalsVisibleTo: VoiceAssistant.IntegrationTests
 
 VoiceAssistant.Infrastructure
   └── ProjectReference: VoiceAssistant.Core
@@ -251,7 +317,8 @@ VoiceAssistant.Core
   └── (无项目引用)
 
 VoiceAssistant.Api.Tests
-  └── ProjectReference: VoiceAssistant.Api
+  ├── ProjectReference: VoiceAssistant.Api
+  └── ProjectReference: VoiceAssistant.Core
 
 VoiceAssistant.Core.Tests
   └── ProjectReference: VoiceAssistant.Core
@@ -259,6 +326,11 @@ VoiceAssistant.Core.Tests
 VoiceAssistant.Infrastructure.Tests
   ├── ProjectReference: VoiceAssistant.Infrastructure
   └── ProjectReference: VoiceAssistant.Core
+
+VoiceAssistant.IntegrationTests
+  ├── ProjectReference: VoiceAssistant.Api
+  ├── ProjectReference: VoiceAssistant.Core
+  └── ProjectReference: VoiceAssistant.Infrastructure
 ```
 
 ---
@@ -283,6 +355,13 @@ curl -X POST \
   -H "Content-Type: application/json" \
   -H "api-key: YOUR_KEY" \
   -d '{"messages":[{"role":"user","content":"Hello"}],"max_tokens":100}'
+```
+
+### 测试健康检查端点
+
+```bash
+curl http://localhost:5039/health
+# 期望返回: Healthy
 ```
 
 ### 浏览器音频调试

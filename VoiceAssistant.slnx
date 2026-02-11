@@ -8,5 +8,6 @@
     <Project Path="tests/VoiceAssistant.Api.Tests/VoiceAssistant.Api.Tests.csproj" />
     <Project Path="tests/VoiceAssistant.Core.Tests/VoiceAssistant.Core.Tests.csproj" />
     <Project Path="tests/VoiceAssistant.Infrastructure.Tests/VoiceAssistant.Infrastructure.Tests.csproj" />
+    <Project Path="tests/VoiceAssistant.IntegrationTests/VoiceAssistant.IntegrationTests.csproj" />
   </Folder>
 </Solution>

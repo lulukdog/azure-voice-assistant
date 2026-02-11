@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: voice-assistant
-          image: ${ACR_NAME}.azurecr.io/voice-assistant:latest
+          image: voiceasstluluk.azurecr.io/voice-assistant:latest
           ports:
             - containerPort: 8080
           envFrom:
@@ -84,17 +84,19 @@ metadata:
   name: voice-assistant
   namespace: voice-assistant
   annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-    # WebSocket 支持
-    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection "upgrade";
+    # HTTP -> HTTPS 重定向
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - voice-assistant.eastasia.cloudapp.azure.com
+      secretName: voice-assistant-tls
   rules:
-    - host: voice-assistant.example.com
+    - host: voice-assistant.eastasia.cloudapp.azure.com
       http:
         paths:
           - path: /

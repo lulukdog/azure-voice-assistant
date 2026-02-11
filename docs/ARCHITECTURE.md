@@ -86,16 +86,19 @@ azure-voice-assistant/
 │   ├── REQUIREMENTS.md            # 需求文档
 │   ├── AGENT_GUIDE.md             # 多 Agent 协作指南
 │   ├── API_SPEC.md                # API 接口规范
-│   └── DEVELOPMENT.md             # 开发指南
+│   ├── DEVELOPMENT.md             # 开发指南
+│   ├── DEPLOYMENT.md              # 部署指南（Docker / AKS）
+│   └── CHANGE_REQUESTS.md         # 跨模块变更请求
 ├── src/
 │   ├── VoiceAssistant.Api/        # Web API 层 - 端点、中间件、WebSocket
 │   ├── VoiceAssistant.Core/       # 核心业务层 - 接口定义、领域模型、Pipeline
 │   ├── VoiceAssistant.Infrastructure/ # 基础设施层 - Azure 服务集成实现
 │   └── VoiceAssistant.Web/        # 静态前端 - HTML/JS/CSS
 ├── tests/
-│   ├── VoiceAssistant.Api.Tests/
-│   ├── VoiceAssistant.Core.Tests/
-│   └── VoiceAssistant.Infrastructure.Tests/
+│   ├── VoiceAssistant.Api.Tests/           # API 层单元测试
+│   ├── VoiceAssistant.Core.Tests/          # Core 层单元测试
+│   ├── VoiceAssistant.Infrastructure.Tests/ # Infrastructure 层单元测试
+│   └── VoiceAssistant.IntegrationTests/    # 端到端集成测试
 ├── deploy/
 │   ├── docker/                    # Dockerfile
 │   └── k8s/                       # Kubernetes 部署清单
@@ -115,17 +118,24 @@ VoiceAssistant.Core/
 │   ├── ISpeechToTextService.cs    # STT 服务接口
 │   ├── ITextToSpeechService.cs    # TTS 服务接口
 │   ├── IChatService.cs            # LLM 对话服务接口
-│   └── IConversationPipeline.cs   # 对话管道接口
+│   ├── IConversationPipeline.cs   # 对话管道接口
+│   └── ISessionManager.cs         # 会话管理接口
 ├── Models/
 │   ├── ConversationMessage.cs     # 对话消息模型
 │   ├── AudioData.cs               # 音频数据模型
 │   ├── SpeechRecognitionResult.cs # 语音识别结果
-│   └── ConversationSession.cs     # 会话模型
+│   ├── ConversationSession.cs     # 会话模型
+│   └── ConversationTurnResult.cs  # 单轮对话结果
 ├── Options/
 │   ├── AzureSpeechOptions.cs      # Azure Speech 配置
 │   └── AzureOpenAIOptions.cs      # Azure OpenAI 配置
-└── Pipeline/
-    └── ConversationPipeline.cs    # 对话管道实现（STT → LLM → TTS）
+├── Exceptions/
+│   └── VoiceAssistantException.cs # 异常层次体系
+├── Services/
+│   └── InMemorySessionManager.cs  # 内存会话管理实现
+├── Pipeline/
+│   └── ConversationPipeline.cs    # 对话管道实现（STT → LLM → TTS）
+└── DependencyInjection.cs         # Core 层 DI 注册
 ```
 
 ### VoiceAssistant.Infrastructure（基础设施层）
@@ -137,7 +147,8 @@ VoiceAssistant.Infrastructure/
 ├── Azure/
 │   ├── AzureSpeechToTextService.cs   # Azure STT 实现
 │   ├── AzureTextToSpeechService.cs   # Azure TTS 实现
-│   └── AzureOpenAIChatService.cs     # Azure OpenAI 实现
+│   ├── AzureOpenAIChatService.cs     # Azure OpenAI 实现
+│   └── AzureServicesHealthCheck.cs   # Azure 服务健康检查
 └── DependencyInjection.cs            # DI 注册扩展方法
 ```
 
@@ -148,7 +159,7 @@ VoiceAssistant.Infrastructure/
 ```
 VoiceAssistant.Api/
 ├── Controllers/
-│   └── ConversationController.cs  # REST API 端点
+│   └── ConversationsController.cs # REST API 端点
 ├── Hubs/
 │   └── VoiceHub.cs                # WebSocket/SignalR Hub
 ├── Middleware/
@@ -174,6 +185,36 @@ VoiceAssistant.Web/
     └── websocket-client.js        # WebSocket 通信模块
 ```
 
+### 测试项目
+
+```
+tests/
+├── VoiceAssistant.Core.Tests/           # Pipeline、SessionManager 单元测试
+├── VoiceAssistant.Infrastructure.Tests/ # Azure 服务实现单元测试、DI 测试
+├── VoiceAssistant.Api.Tests/            # Controller、Middleware 单元测试
+└── VoiceAssistant.IntegrationTests/     # WebApplicationFactory 端到端测试
+    ├── Fixtures/                        # 测试工厂和 Mock 配置
+    ├── RestApi/                         # REST API 集成测试
+    ├── SignalR/                         # WebSocket Hub 集成测试
+    ├── HealthCheck/                     # 健康检查集成测试
+    └── Middleware/                      # 异常中间件集成测试
+```
+
+## 异常层次体系
+
+系统使用统一的异常类层次进行错误传递和 HTTP 状态码映射：
+
+```
+VoiceAssistantException (base)              → 500
+├── SessionNotFoundException                → 404  (SESSION_NOT_FOUND)
+├── AudioTooLongException                   → 400  (AUDIO_TOO_LONG)
+├── SpeechRecognitionException              → 502  (STT_FAILED)
+├── ChatServiceException                    → 502  (LLM_FAILED)
+└── SpeechSynthesisException                → 502  (TTS_FAILED)
+```
+
+`ExceptionHandlingMiddleware` 在 API 层将异常统一转换为 JSON 错误响应。Controller 层的 `Speak` 方法也包含独立的 try-catch，对特定异常做相同的映射处理。
+
 ## 关键设计决策
 
 ### 1. 使用 WebSocket（SignalR）而非纯 REST
@@ -198,3 +239,9 @@ VoiceAssistant.Web/
 - 本地开发：`dotnet run` 直接启动
 - Docker：多阶段构建镜像
 - 生产环境：AKS 部署，支持水平扩展
+
+### 5. 会话状态管理
+
+- 当前使用 `InMemorySessionManager`（`ConcurrentDictionary`），注册为 Singleton
+- 线程安全，支持并发访问
+- 后续可替换为 Redis 实现以支持多实例部署

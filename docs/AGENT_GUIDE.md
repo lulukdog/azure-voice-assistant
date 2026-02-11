@@ -13,6 +13,7 @@
 3. **需求文档** (`docs/REQUIREMENTS.md`) — 理解功能目标
 4. **API 规范** (`docs/API_SPEC.md`) — 理解接口契约
 5. **开发指南** (`docs/DEVELOPMENT.md`) — 了解编码规范和运行方式
+6. **部署指南** (`docs/DEPLOYMENT.md`) — 了解 Docker/AKS 部署流程
 
 ## Agent 角色分工
 
@@ -21,10 +22,12 @@
 **负责目录**: `src/VoiceAssistant.Core/`
 
 **职责**:
-- 定义所有服务接口（`ISpeechToTextService`, `ITextToSpeechService`, `IChatService`）
-- 定义领域模型（`ConversationMessage`, `AudioData`, `SpeechRecognitionResult`）
+- 定义所有服务接口（`ISpeechToTextService`, `ITextToSpeechService`, `IChatService`, `IConversationPipeline`, `ISessionManager`）
+- 定义领域模型（`ConversationMessage`, `AudioData`, `SpeechRecognitionResult`, `ConversationSession`, `ConversationTurnResult`）
 - 定义配置选项类（`AzureSpeechOptions`, `AzureOpenAIOptions`）
+- 定义异常类型层次（`VoiceAssistantException` 及其子类）
 - 实现 `ConversationPipeline`（编排 STT → LLM → TTS 流程）
+- 实现 `InMemorySessionManager`（基于 `ConcurrentDictionary` 的会话管理）
 
 **不可修改**:
 - 其他 Agent 负责的目录
@@ -45,6 +48,7 @@
 - 实现 `ISpeechToTextService` → `AzureSpeechToTextService`
 - 实现 `ITextToSpeechService` → `AzureTextToSpeechService`
 - 实现 `IChatService` → `AzureOpenAIChatService`
+- 实现 `AzureServicesHealthCheck`（健康检查）
 - 编写 DI 注册扩展方法 `DependencyInjection.cs`
 
 **前置依赖**:
@@ -61,7 +65,7 @@
 **负责目录**: `src/VoiceAssistant.Api/`
 
 **职责**:
-- 实现 REST API 端点（`ConversationController`）
+- 实现 REST API 端点（`ConversationsController`）
 - 实现 WebSocket Hub（`VoiceHub`）
 - 实现中间件（异常处理、请求日志）
 - 配置 `Program.cs`（DI 注册、中间件管道、SignalR）
@@ -92,9 +96,10 @@
 **负责目录**: `tests/`
 
 **职责**:
-- 为 Core 层编写单元测试
-- 为 Infrastructure 层编写集成测试（使用 Mock）
-- 为 API 层编写端到端测试
+- 为 Core 层编写单元测试（`VoiceAssistant.Core.Tests`）
+- 为 Infrastructure 层编写单元测试（`VoiceAssistant.Infrastructure.Tests`）
+- 为 API 层编写单元测试（`VoiceAssistant.Api.Tests`）
+- 编写集成测试（`VoiceAssistant.IntegrationTests`）— 使用 `WebApplicationFactory<Program>` 端到端验证 REST API、SignalR Hub、健康检查和异常中间件
 
 ---
 
@@ -128,7 +133,7 @@
 | 实现类 | `Azure{Name}Service` | `AzureSpeechToTextService` |
 | 配置类 | `Azure{Service}Options` | `AzureSpeechOptions` |
 | 模型类 | PascalCase，无前缀 | `ConversationMessage` |
-| 控制器 | `{Resource}Controller` | `ConversationController` |
+| 控制器 | `{Resource}Controller` | `ConversationsController` |
 
 ### 规则 4: Git 分支策略
 
@@ -159,7 +164,7 @@ Core 层不允许引用 Infrastructure 或 Api 层。依赖注入在 Api 层的 
 
 - 不使用静态变量共享状态
 - 所有跨请求状态通过 DI 容器的生命周期管理
-- 会话状态使用 `IMemoryCache` 或后续迁移到 Redis
+- 会话状态使用 `InMemorySessionManager`（基于 `ConcurrentDictionary`，Singleton 生命周期）
 
 ## Agent 启动检查清单
 
@@ -186,4 +191,5 @@ Agent 开始工作前，请确认：
 |------|------|
 | `docs/CHANGE_REQUESTS.md` | 跨 Agent 变更请求 |
 | `docs/API_SPEC.md` | 接口契约（所有 Agent 共享） |
+| `docs/DEPLOYMENT.md` | 部署指南（Agent F 主要参考） |
 | `docs/DECISIONS.md` | 重要设计决策记录（可选，后续创建） |

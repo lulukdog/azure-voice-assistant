@@ -41,23 +41,42 @@ public class AzureSpeechToTextService(
             var speechConfig = SpeechConfig.FromSubscription(_options.SubscriptionKey, _options.Region);
             speechConfig.SpeechRecognitionLanguage = language;
 
-            // 使用 PushAudioInputStream 将音频流推送给 SDK
-            using var pushStream = AudioInputStream.CreatePushStream(
-                AudioStreamFormat.GetWaveFormatPCM(16000, 16, 1));
+            // 将音频流读入内存以便检查大小和创建 BinaryReader
+            using var memoryStream = new MemoryStream();
+            await audioStream.CopyToAsync(memoryStream, cancellationToken);
 
-            // 将音频数据写入 push stream，同时跟踪总字节数
+            if (memoryStream.Length > MaxAudioBytes + 44) // +44 for WAV header
+            {
+                var durationSeconds = (double)(memoryStream.Length - 44) / (16000 * 2);
+                throw new AudioTooLongException(durationSeconds, MaxAudioDurationSeconds);
+            }
+
+            memoryStream.Position = 0;
+
+            // 使用 PullAudioInputStream + WAV 格式让 SDK 自动解析 WAV header
+            // 先从 WAV header 中读取实际采样率
+            var reader = new BinaryReader(memoryStream);
+            memoryStream.Position = 24; // WAV header offset for sample rate
+            var sampleRate = reader.ReadUInt32();
+            memoryStream.Position = 22; // channels
+            var channels = reader.ReadUInt16();
+            memoryStream.Position = 34; // bits per sample
+            var bitsPerSample = reader.ReadUInt16();
+            memoryStream.Position = 0;
+
+            logger.LogInformation("STT: WAV format - sampleRate={SampleRate}, channels={Channels}, bitsPerSample={BitsPerSample}",
+                sampleRate, channels, bitsPerSample);
+
+            // 使用 PushAudioInputStream 并跳过 WAV header (44 bytes)
+            using var pushStream = AudioInputStream.CreatePushStream(
+                AudioStreamFormat.GetWaveFormatPCM(sampleRate, (byte)bitsPerSample, (byte)channels));
+
+            // 跳过 WAV header
+            memoryStream.Position = 44;
             var buffer = new byte[4096];
             int bytesRead;
-            long totalBytesRead = 0;
-            while ((bytesRead = await audioStream.ReadAsync(buffer, cancellationToken)) > 0)
+            while ((bytesRead = memoryStream.Read(buffer, 0, buffer.Length)) > 0)
             {
-                totalBytesRead += bytesRead;
-                if (totalBytesRead > MaxAudioBytes)
-                {
-                    var durationSeconds = (double)totalBytesRead / (16000 * 2);
-                    throw new AudioTooLongException(durationSeconds, MaxAudioDurationSeconds);
-                }
-
                 pushStream.Write(buffer, bytesRead);
             }
             pushStream.Close();

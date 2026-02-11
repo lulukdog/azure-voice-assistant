@@ -8,7 +8,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
-builder.Services.AddSignalR();
+builder.Services.AddSignalR(options =>
+{
+    // 60s of 16kHz 16-bit mono PCM ≈ 1.92MB raw → ~2.56MB base64
+    options.MaximumReceiveMessageSize = 4 * 1024 * 1024; // 4 MB
+});
 builder.Services.AddHealthChecks();
 
 // Register application services
@@ -37,6 +41,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();
 app.MapHub<VoiceHub>("/hubs/voice");
