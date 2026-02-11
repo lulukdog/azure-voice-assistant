@@ -12,10 +12,10 @@ RESOURCE_GROUP="${RESOURCE_GROUP:-voice-assistant-rg}"
 LOCATION="${LOCATION:-eastasia}"
 OPENAI_LOCATION="${OPENAI_LOCATION:-eastus2}"  # OpenAI 在 eastasia 可能不可用
 
-ACR_NAME="${ACR_NAME:-voiceassistantacr}"
+ACR_NAME="${ACR_NAME:-voiceasstluluk}"
 AKS_NAME="${AKS_NAME:-voice-assistant-aks}"
-AKS_NODE_SIZE="${AKS_NODE_SIZE:-Standard_B2s}"
-AKS_NODE_COUNT="${AKS_NODE_COUNT:-2}"
+AKS_NODE_SIZE="${AKS_NODE_SIZE:-Standard_B2s_v2}"
+AKS_NODE_COUNT="${AKS_NODE_COUNT:-1}"
 
 SPEECH_NAME="${SPEECH_NAME:-voice-assistant-speech}"
 OPENAI_NAME="${OPENAI_NAME:-voice-assistant-openai}"
@@ -129,7 +129,7 @@ az cognitiveservices account create \
     --name "$SPEECH_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --kind SpeechServices \
-    --sku S0 \
+    --sku F0 \
     --location "$LOCATION" \
     --output none
 ok "Speech Service 已创建"

@@ -2,23 +2,21 @@
 # Stage 1: Build
 # ========================================
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-WORKDIR /src
+WORKDIR /build
 
-# 复制解决方案和项目文件（利用 Docker 缓存层）
-COPY *.slnx .
+# 复制项目文件（利用 Docker 缓存层）
 COPY src/VoiceAssistant.Core/VoiceAssistant.Core.csproj src/VoiceAssistant.Core/
 COPY src/VoiceAssistant.Infrastructure/VoiceAssistant.Infrastructure.csproj src/VoiceAssistant.Infrastructure/
 COPY src/VoiceAssistant.Api/VoiceAssistant.Api.csproj src/VoiceAssistant.Api/
 
 # 还原 NuGet 包
-RUN dotnet restore
+RUN dotnet restore src/VoiceAssistant.Api/VoiceAssistant.Api.csproj
 
-# 复制所有源码并构建
-COPY . .
+# 复制源码并构建
+COPY src/ src/
 RUN dotnet publish src/VoiceAssistant.Api/VoiceAssistant.Api.csproj \
     -c Release \
-    -o /app/publish \
-    --no-restore
+    -o /app/publish
 
 # ========================================
 # Stage 2: Runtime
@@ -26,9 +24,9 @@ RUN dotnet publish src/VoiceAssistant.Api/VoiceAssistant.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-# Azure Speech SDK 运行时依赖（Linux）
+# Azure Speech SDK 运行时依赖（Linux/Ubuntu Noble）
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libasound2 \
+    libasound2t64 \
     libssl3 \
     ca-certificates \
     curl \

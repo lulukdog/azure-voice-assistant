@@ -6,7 +6,7 @@ metadata:
   labels:
     app: voice-assistant
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: voice-assistant
@@ -115,8 +115,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: voice-assistant
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 1
+  maxReplicas: 3
   metrics:
     - type: Resource
       resource:
