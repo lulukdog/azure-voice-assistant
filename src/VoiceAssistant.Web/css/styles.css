@@ -99,6 +99,7 @@ main {
     padding: 16px;
     background: white;
     border-top: 1px solid #eee;
+    position: relative;
 }
 
 .btn-record {
@@ -130,4 +131,122 @@ main {
     0% { box-shadow: 0 0 0 0 rgba(211,47,47,0.4); }
     70% { box-shadow: 0 0 0 10px rgba(211,47,47,0); }
     100% { box-shadow: 0 0 0 0 rgba(211,47,47,0); }
+}
+
+/* Connection status indicator */
+.connection-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+.connection-status .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff5722;
+}
+
+.connection-status.connected .dot {
+    background: #4caf50;
+}
+
+.connection-status.reconnecting .dot {
+    background: #ff9800;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* Volume bar */
+.volume-bar {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    height: 4px;
+    background: #e0e0e0;
+    border-radius: 2px;
+    top: 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.volume-bar.active {
+    opacity: 1;
+}
+
+.volume-level {
+    height: 100%;
+    background: #0078d4;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s;
+}
+
+.volume-bar.active .volume-level {
+    background: #d32f2f;
+}
+
+/* Status states */
+.status.recording { color: #d32f2f; font-weight: 500; }
+.status.recognizing { color: #ff9800; }
+.status.thinking { color: #0078d4; }
+.status.playing { color: #4caf50; }
+.status.error { color: #d32f2f; }
+
+/* Thinking animation dots */
+.status.thinking::after {
+    content: '';
+    animation: dots 1.5s infinite;
+}
+
+@keyframes dots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+}
+
+/* Button disabled state */
+.btn-record:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-record:disabled:hover {
+    transform: none;
+    background: #0078d4;
+}
+
+/* Smooth scrollbar for chat */
+.chat-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 2px;
+}
+
+/* Error message style */
+.message.assistant .bubble.error {
+    background: #fff3e0;
+    color: #e65100;
+    border-left: 3px solid #ff9800;
+}
+
+/* Mobile optimizations */
+@media (max-width: 480px) {
+    header { padding: 12px; }
+    header h1 { font-size: 1.1rem; }
+    .controls { padding: 12px; }
+    .btn-record { width: 56px; height: 56px; font-size: 1.3rem; }
 }

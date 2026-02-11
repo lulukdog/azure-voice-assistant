@@ -11,6 +11,10 @@
         <header>
             <h1>Azure Voice Assistant</h1>
             <p>语音对话助手</p>
+            <div id="connection-status" class="connection-status">
+                <span class="dot"></span>
+                <span class="text">未连接</span>
+            </div>
         </header>
 
         <main>
@@ -24,6 +28,9 @@
 
             <!-- 控制区域 -->
             <div class="controls">
+                <div class="volume-bar" id="volume-bar">
+                    <div class="volume-level" id="volume-level"></div>
+                </div>
                 <button id="btn-record" class="btn-record" title="按住录音">
                     🎤
                 </button>
@@ -31,6 +38,7 @@
         </main>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
     <script src="js/websocket-client.js"></script>
     <script src="js/audio-recorder.js"></script>
     <script src="js/audio-player.js"></script>
